@@ -1,4 +1,5 @@
 ## Telegram Bot Setup Guide
+![image](https://github.com/user-attachments/assets/0d668d06-72a0-4e04-b0f8-d95172c56670)
 
 Follow these steps to set up and run your Telegram bot:
 
