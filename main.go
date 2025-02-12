@@ -4,9 +4,9 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 	"strings"
-	"net/http"
 
 	_ "github.com/denisenkom/go-mssqldb"
 	_ "github.com/go-sql-driver/mysql"
@@ -20,7 +20,7 @@ var (
 )
 
 type Table struct {
-	Name   string
+	Name    string
 	Storage string
 	Port    string
 }
@@ -37,7 +37,7 @@ func testConnection(driver, connStr string) error {
 
 func executeQuery(query string) (string, error) {
 	if currentConnStr == "" {
-		return "", fmt.Errorf("chưa được kết nối database. Hãy /connect trước")
+		return "", fmt.Errorf("chưa được kết nối database. Hãy \"/connect\" trước")
 	}
 
 	db, err := sql.Open(currentDriver, currentConnStr)
@@ -94,7 +94,7 @@ func executeQuery(query string) (string, error) {
 func main() {
 	data4Search := Table{
 		Name: "Sheet1",
-		Port:  "Column_2",
+		Port: "Column_2",
 	}
 
 	var token = os.Getenv("TOKEN")
@@ -110,15 +110,41 @@ func main() {
 	bot.Debug = true
 	log.Printf("authorized on account %s", bot.Self.UserName)
 
+	// Auto connect to the database using environment variables
+	dbConnectionString := os.Getenv("DBSTRING")
+	if dbConnectionString == "" {
+		log.Fatal("Missing DATABASE_URL environment variable.")
+	}
+
+	var dbDriver string
+	switch {
+	case strings.Contains(dbConnectionString, "postgresql://") || strings.Contains(dbConnectionString, "postgres://"):
+		dbDriver = "postgres"
+	case strings.Contains(dbConnectionString, "@tcp("):
+		dbDriver = "mysql"
+	case strings.Contains(dbConnectionString, "sqlserver://") || strings.Contains(dbConnectionString, "server="):
+		dbDriver = "sqlserver"
+	default:
+		log.Fatal("Unsupported database type specified in DATABASE_URL.")
+	}
+
+	// Test database connection
+	if err := testConnection(dbDriver, dbConnectionString); err != nil {
+		log.Fatalf("Database connection failed: %v", err)
+	}
+
+	// Set current connection details
+	currentDriver = dbDriver
+	currentConnStr = dbConnectionString
+
 	u := tgbotapi.NewUpdate(0)
 	u.Timeout = 60
 
 	updates := bot.GetUpdatesChan(u)
 
-	// Bind to the port set by Render
 	port := os.Getenv("PORT")
 	if port == "" {
-		port = "8080" // fallback port if PORT is not set
+		port = "8080" // Fallback port if PORT is not set
 	}
 
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -140,52 +166,10 @@ func main() {
 				helpMsg := tgbotapi.NewMessage(update.Message.Chat.ID,
 					"*ᴛɪ̀ᴍ ᴋɪᴇ̂́ᴍ ᴛᴜ̉ ᴍᴀ̣ɴɢ* 🔎\n\n"+
 						"`Các chức năng:`\n"+
-						"*/connect*\n"+
 						"*/search*\n"+
 						"*/query* `〔lệnh truy vấn〕`")
 				helpMsg.ParseMode = tgbotapi.ModeMarkdown
 				bot.Send(helpMsg)
-
-			case "connect":
-				msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Hãy nhập chuỗi kết nối database.")
-				bot.Send(msg)
-
-				update = <-updates // Get the next update (user input)
-
-				connStr := update.Message.Text
-				if connStr == "" {
-					errMsg := tgbotapi.NewMessage(update.Message.Chat.ID, "Chuỗi kết nối không hợp lệ.")
-					bot.Send(errMsg)
-					continue
-				}
-
-				var driver string
-				switch {
-				case strings.Contains(connStr, "postgresql://") || strings.Contains(connStr, "postgres://"):
-					driver = "postgres"
-				case strings.Contains(connStr, "@tcp("):
-					driver = "mysql"
-				case strings.Contains(connStr, "sqlserver://") || strings.Contains(connStr, "server="):
-					driver = "sqlserver"
-				default:
-					errMsg := tgbotapi.NewMessage(update.Message.Chat.ID, "Database này không được hỗ trợ.")
-					bot.Send(errMsg)
-					continue
-				}
-
-				err := testConnection(driver, connStr)
-				if err != nil {
-					errMsg := tgbotapi.NewMessage(update.Message.Chat.ID, fmt.Sprintf("Lỗi kết nối: %v", err))
-					bot.Send(errMsg)
-					continue
-				}
-
-				currentDriver = driver
-				currentConnStr = connStr
-
-				msg = tgbotapi.NewMessage(update.Message.Chat.ID, fmt.Sprintf("Đã kết nối: %s", strings.ToLower(driver)))
-				bot.Send(msg)
-
 			case "query":
 				query := update.Message.CommandArguments()
 				if query == "" {
@@ -205,21 +189,15 @@ func main() {
 
 				msg := tgbotapi.NewMessage(update.Message.Chat.ID, result)
 				bot.Send(msg)
-				
 			case "search":
-				// Ask for Port Pon
 				askMsg := tgbotapi.NewMessage(update.Message.Chat.ID, "Nhập Port Pon của tủ bạn tìm kiếm.")
 				bot.Send(askMsg)
 
-				// Wait for the user's response
-				update = <-updates // Get the next update (user input)
+				update = <-updates // Wait for user input
 
 				portPon := update.Message.Text
+				query := fmt.Sprintf("SELECT * FROM %s WHERE LOWER(%s) LIKE LOWER('%%%s%%')", data4Search.Name, data4Search.Port, portPon)
 
-				// Construct the query with LIKE to find the Port Pon
-				query := fmt.Sprintf("SELECT * FROM %s WHERE %s LIKE '%%%s%%'", data4Search.Name, data4Search.Port, portPon)
-
-				// Execute the query
 				result, err := executeQuery(query)
 				if err != nil {
 					errMsg := tgbotapi.NewMessage(update.Message.Chat.ID, fmt.Sprintf("Lỗi: %v", err))
@@ -227,13 +205,11 @@ func main() {
 					continue
 				}
 
-				// Send the result back to Telegram
 				if result == "" {
 					result = "Không tìm thấy kết quả."
 				}
 				msg := tgbotapi.NewMessage(update.Message.Chat.ID, result)
 				bot.Send(msg)
-
 			default:
 				helpMsg := tgbotapi.NewMessage(update.Message.Chat.ID,
 					"Lỗi, sài /start để biết các chức năng.")
