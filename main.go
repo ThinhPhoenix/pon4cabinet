@@ -93,11 +93,12 @@ func executeQuery(query string) (string, error) {
 
 func main() {
 	data4Search := Table{
-		Name: "Sheet1",
-		Port: "Column_2",
+		Name: "fpt",
+		Port: "pon",
 	}
 
-	var token = os.Getenv("TOKEN")
+	// var token = os.Getenv("TOKEN")
+	var token = "7234682076:AAFdeveFmKgb-oBVMEF7W9ZnL5AyY-J1Ltk"
 	if token == "" {
 		log.Fatal("Thiếu bot token.")
 	}
@@ -111,7 +112,9 @@ func main() {
 	log.Printf("authorized on account %s", bot.Self.UserName)
 
 	// Auto connect to the database using environment variables
-	dbConnectionString := os.Getenv("DBSTRING")
+	// dbConnectionString := os.Getenv("DBSTRING")
+	dbConnectionString := "postgresql://neondb_owner:npg_mNH1XnzoLTQ6@ep-raspy-shape-a8fyxfop-pooler.eastus2.azure.neon.tech/neondb?sslmode=require"
+
 	if dbConnectionString == "" {
 		log.Fatal("Missing DATABASE_URL environment variable.")
 	}
