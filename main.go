@@ -97,8 +97,7 @@ func main() {
 		Port: "pon",
 	}
 
-	// var token = os.Getenv("TOKEN")
-	var token = "7234682076:AAFdeveFmKgb-oBVMEF7W9ZnL5AyY-J1Ltk"
+	var token = os.Getenv("TOKEN")
 	if token == "" {
 		log.Fatal("Thiếu bot token.")
 	}
@@ -112,8 +111,7 @@ func main() {
 	log.Printf("authorized on account %s", bot.Self.UserName)
 
 	// Auto connect to the database using environment variables
-	// dbConnectionString := os.Getenv("DBSTRING")
-	dbConnectionString := "postgresql://neondb_owner:npg_mNH1XnzoLTQ6@ep-raspy-shape-a8fyxfop-pooler.eastus2.azure.neon.tech/neondb?sslmode=require"
+	dbConnectionString := os.Getenv("DBSTRING")
 
 	if dbConnectionString == "" {
 		log.Fatal("Missing DATABASE_URL environment variable.")
